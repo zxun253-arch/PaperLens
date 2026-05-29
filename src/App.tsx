@@ -4,6 +4,7 @@ import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "./components/AppLayout";
 import { initDatabase } from "./lib/db/database";
 import { LibraryPage } from "./pages/LibraryPage";
+import { PaperComparePage } from "./pages/PaperComparePage";
 import { PaperDetailPage } from "./pages/PaperDetailPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
@@ -30,6 +31,7 @@ function App() {
         <Route element={<AppLayout />}>
           <Route index element={<Navigate to="/library" replace />} />
           <Route path="/library" element={<LibraryPage />} />
+          <Route path="/compare" element={<PaperComparePage />} />
           <Route path="/papers/:paperId" element={<PaperDetailPage />} />
           <Route
             path="/paper/:paperId"

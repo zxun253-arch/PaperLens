@@ -11,6 +11,16 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.*
+*.db
+*.sqlite
+*.sqlite3
+paperlens.db
+*.tmp
+*.temp
+*.md.tmp
+*.docx.tmp
 
 # Build artifacts
 release

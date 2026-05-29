@@ -20,6 +20,8 @@ const schemaStatements = [
     paper_type TEXT,
     research_field TEXT,
     status TEXT NOT NULL DEFAULT 'unparsed',
+    reading_status TEXT NOT NULL DEFAULT 'unread',
+    is_favorite INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );`,
@@ -57,6 +59,49 @@ const schemaStatements = [
     value TEXT,
     updated_at TEXT NOT NULL
   );`,
+  `CREATE TABLE IF NOT EXISTS llm_call_logs (
+    id TEXT PRIMARY KEY,
+    provider TEXT NOT NULL,
+    adapter TEXT NOT NULL,
+    model TEXT,
+    base_url TEXT,
+    action TEXT NOT NULL,
+    status TEXT NOT NULL,
+    error_type TEXT,
+    message TEXT,
+    created_at TEXT NOT NULL
+  );`,
+  `CREATE TABLE IF NOT EXISTS ai_outputs (
+    id TEXT PRIMARY KEY,
+    paper_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    model TEXT,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    structured_json TEXT,
+    source_chunk_ids TEXT,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (paper_id) REFERENCES papers(id) ON DELETE CASCADE
+  );`,
+  `CREATE TABLE IF NOT EXISTS paper_tags (
+    id TEXT PRIMARY KEY,
+    paper_id TEXT NOT NULL,
+    tag TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (paper_id) REFERENCES papers(id) ON DELETE CASCADE,
+    UNIQUE (paper_id, tag)
+  );`,
+  `CREATE TABLE IF NOT EXISTS literature_reviews (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    paper_ids TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );`,
 ];
 
 async function ensureColumn(
@@ -75,6 +120,18 @@ async function ensureColumn(
 }
 
 async function runCompatibleMigrations(db: Database) {
+  await ensureColumn(
+    db,
+    "papers",
+    "reading_status",
+    "ALTER TABLE papers ADD COLUMN reading_status TEXT NOT NULL DEFAULT 'unread'",
+  );
+  await ensureColumn(
+    db,
+    "papers",
+    "is_favorite",
+    "ALTER TABLE papers ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0",
+  );
   await ensureColumn(
     db,
     "paper_notes",

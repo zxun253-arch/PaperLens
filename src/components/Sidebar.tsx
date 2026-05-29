@@ -2,7 +2,7 @@ import { NavLink } from "react-router-dom";
 
 const navItems = [
   { label: "论文库", to: "/library" },
-  { label: "当前论文", to: "/library" },
+  { label: "多论文对比", to: "/compare" },
   { label: "设置", to: "/settings" },
 ];
 
@@ -12,9 +12,7 @@ export function Sidebar() {
       <div className="border-b border-slate-200 px-6 py-6">
         <p className="text-xl font-semibold text-slate-950">文献透镜</p>
         <p className="mt-1 text-sm font-medium text-cyan-700">PaperLens</p>
-        <p className="mt-4 text-sm leading-6 text-slate-500">
-          论文辅助工作台
-        </p>
+        <p className="mt-4 text-sm leading-6 text-slate-500">论文辅助工作台</p>
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-5">

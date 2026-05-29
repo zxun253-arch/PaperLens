@@ -22,9 +22,10 @@ export async function listPapers(): Promise<Paper[]> {
 export async function getPaperById(id: string): Promise<Paper | null> {
   try {
     const db = await getDatabase();
-    const rows = await db.select<Paper[]>("SELECT * FROM papers WHERE id = $1", [
-      id,
-    ]);
+    const rows = await db.select<Paper[]>(
+      "SELECT * FROM papers WHERE id = $1",
+      [id],
+    );
     return rows[0] ?? null;
   } catch (error) {
     console.error("Failed to get paper", error);
@@ -48,6 +49,8 @@ export async function createPaper(input: CreatePaperInput): Promise<Paper> {
     paper_type: input.paper_type ?? null,
     research_field: input.research_field ?? null,
     status: input.status ?? "unparsed",
+    reading_status: input.reading_status ?? "unread",
+    is_favorite: input.is_favorite ?? 0,
     created_at: now,
     updated_at: now,
   };
@@ -57,9 +60,9 @@ export async function createPaper(input: CreatePaperInput): Promise<Paper> {
     await db.execute(
       `INSERT INTO papers (
         id, title, authors, year, journal, file_name, file_path, file_size,
-        abstract, keywords, paper_type, research_field, status, created_at,
-        updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+        abstract, keywords, paper_type, research_field, status, reading_status,
+        is_favorite, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
       [
         paper.id,
         paper.title,
@@ -74,6 +77,8 @@ export async function createPaper(input: CreatePaperInput): Promise<Paper> {
         paper.paper_type,
         paper.research_field,
         paper.status,
+        paper.reading_status,
+        paper.is_favorite,
         paper.created_at,
         paper.updated_at,
       ],
@@ -118,8 +123,10 @@ export async function updatePaper(
         paper_type = $10,
         research_field = $11,
         status = $12,
-        updated_at = $13
-      WHERE id = $14`,
+        reading_status = $13,
+        is_favorite = $14,
+        updated_at = $15
+      WHERE id = $16`,
       [
         updated.title,
         updated.authors,
@@ -133,6 +140,8 @@ export async function updatePaper(
         updated.paper_type,
         updated.research_field,
         updated.status,
+        updated.reading_status,
+        updated.is_favorite,
         updated.updated_at,
         id,
       ],

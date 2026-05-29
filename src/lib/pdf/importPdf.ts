@@ -57,7 +57,9 @@ async function getPdfFileInfo(filePath: string): Promise<FileInfo> {
     return await invoke<FileInfo>("get_file_info", { path: filePath });
   } catch (error) {
     console.error("Failed to get PDF file info", error);
-    throw new Error(error instanceof Error ? error.message : "获取文件信息失败。");
+    throw new Error(
+      error instanceof Error ? error.message : "获取文件信息失败。",
+    );
   }
 }
 

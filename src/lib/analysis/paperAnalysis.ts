@@ -33,10 +33,15 @@ function buildSectionOverview(chunks: PaperChunk[]): PaperSectionOverview[] {
   }));
 }
 
-export function analyzePaperStructure(chunks: PaperChunk[]): PaperAnalysisResult {
+export function analyzePaperStructure(
+  chunks: PaperChunk[],
+): PaperAnalysisResult {
   const sections = buildSectionOverview(chunks);
   const detectedSectionCount = sections.filter(
-    (section) => section.title !== "未识别章节" && section.title !== "全文" && section.title !== "续文",
+    (section) =>
+      section.title !== "未识别章节" &&
+      section.title !== "全文" &&
+      section.title !== "续文",
   ).length;
   const totalCharacters = chunks.reduce(
     (total, chunk) => total + chunk.content.length,

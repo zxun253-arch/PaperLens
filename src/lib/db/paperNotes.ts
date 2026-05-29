@@ -22,7 +22,9 @@ export async function listPaperNotes(paperId: string): Promise<PaperNote[]> {
   }
 }
 
-export async function getPaperNoteById(noteId: string): Promise<PaperNote | null> {
+export async function getPaperNoteById(
+  noteId: string,
+): Promise<PaperNote | null> {
   try {
     const db = await getDatabase();
     const rows = await db.select<PaperNote[]>(
@@ -36,7 +38,9 @@ export async function getPaperNoteById(noteId: string): Promise<PaperNote | null
   }
 }
 
-export async function createPaperNote(input: PaperNoteInput): Promise<PaperNote> {
+export async function createPaperNote(
+  input: PaperNoteInput,
+): Promise<PaperNote> {
   const now = new Date().toISOString();
   const note: PaperNote = {
     id: createId(),

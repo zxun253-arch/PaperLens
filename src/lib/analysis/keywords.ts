@@ -58,10 +58,12 @@ const chineseStopWords = new Set([
 ]);
 
 function tokenizeEnglish(text: string) {
-  return text
-    .toLowerCase()
-    .match(/[a-z][a-z-]{2,}/g)
-    ?.filter((word) => !englishStopWords.has(word) && word.length <= 32) ?? [];
+  return (
+    text
+      .toLowerCase()
+      .match(/[a-z][a-z-]{2,}/g)
+      ?.filter((word) => !englishStopWords.has(word) && word.length <= 32) ?? []
+  );
 }
 
 function tokenizeChinese(text: string) {

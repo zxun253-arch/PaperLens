@@ -89,6 +89,23 @@ fn write_text_file(file_path: String, content: String) -> Result<(), String> {
     std::fs::write(&path, content).map_err(|error| format!("写入 Markdown 文件失败：{}", error))
 }
 
+#[tauri::command]
+fn write_binary_file(file_path: String, bytes: Vec<u8>) -> Result<(), String> {
+    let path = PathBuf::from(&file_path);
+
+    if file_path.trim().is_empty() {
+        return Err("保存路径为空。".into());
+    }
+
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            return Err("保存目录不存在。".into());
+        }
+    }
+
+    std::fs::write(&path, bytes).map_err(|error| format!("写入 Word 文件失败：{}", error))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -98,7 +115,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_file_info,
             extract_pdf_text,
-            write_text_file
+            write_text_file,
+            write_binary_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

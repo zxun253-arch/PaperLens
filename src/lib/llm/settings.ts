@@ -16,7 +16,7 @@ export const aiModeLabels: Record<AiMode, string> = {
 
 export const aiModeDescriptions: Record<AiMode, string> = {
   local_basic:
-    "不需要 API，不需要服务器。可使用 PDF 解析、论文分块、本地分析、Prompt、笔记和 Markdown 导出。",
+    "不需要 API，不需要服务器。可使用 PDF 解析、论文分块、本地分析、Prompt、笔记和 Markdown / Word 导出。",
   prompt_only:
     "不需要 API，不需要服务器。根据论文分块生成 Prompt，复制到外部 AI 网页使用，再把结果粘贴回 App 保存。",
   custom_api:
@@ -28,7 +28,8 @@ export const providerConfigs: Record<LLMProvider, ProviderConfig> = {
   openai_compatible: {
     provider: "openai_compatible",
     label: "OpenAI-compatible 通用接口",
-    description: "适合兼容 OpenAI Chat Completions 格式的服务。Base URL 通常形如 https://api.example.com/v1。",
+    description:
+      "适合兼容 OpenAI Chat Completions 格式的服务。Base URL 通常形如 https://api.example.com/v1。",
     defaultBaseUrl: "",
     modelPlaceholder: "例如：deepseek-chat / qwen-plus / gpt-4.1-mini",
     apiKeyPlaceholder: "请输入对应服务商的 API Key",
@@ -37,7 +38,8 @@ export const providerConfigs: Record<LLMProvider, ProviderConfig> = {
   openai: {
     provider: "openai",
     label: "OpenAI",
-    description: "复用 OpenAI-compatible 接口。请以 OpenAI 控制台中的模型名和额度为准。",
+    description:
+      "复用 OpenAI-compatible 接口。请以 OpenAI 控制台中的模型名和额度为准。",
     defaultBaseUrl: "https://api.openai.com/v1",
     modelPlaceholder: "例如：gpt-4.1-mini",
     apiKeyPlaceholder: "sk-...",
@@ -46,7 +48,8 @@ export const providerConfigs: Record<LLMProvider, ProviderConfig> = {
   deepseek: {
     provider: "deepseek",
     label: "DeepSeek",
-    description: "通常可走 OpenAI-compatible 格式。Base URL 和模型名以 DeepSeek 控制台为准。",
+    description:
+      "通常可走 OpenAI-compatible 格式。Base URL 和模型名以 DeepSeek 控制台为准。",
     defaultBaseUrl: "https://api.deepseek.com",
     modelPlaceholder: "例如：deepseek-chat",
     apiKeyPlaceholder: "请输入 DeepSeek API Key",
@@ -55,7 +58,8 @@ export const providerConfigs: Record<LLMProvider, ProviderConfig> = {
   qwen: {
     provider: "qwen",
     label: "Qwen / 通义千问",
-    description: "建议使用阿里云百炼 OpenAI-compatible 接口。具体模型名以百炼控制台为准。",
+    description:
+      "建议使用阿里云百炼 OpenAI-compatible 接口。具体模型名以百炼控制台为准。",
     defaultBaseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
     modelPlaceholder: "例如：qwen-plus",
     apiKeyPlaceholder: "请输入阿里云百炼 API Key",
@@ -91,7 +95,8 @@ export const providerConfigs: Record<LLMProvider, ProviderConfig> = {
   moonshot: {
     provider: "moonshot",
     label: "Moonshot / Kimi",
-    description: "优先按 OpenAI-compatible 接口调用。请以 Moonshot 控制台为准。",
+    description:
+      "优先按 OpenAI-compatible 接口调用。请以 Moonshot 控制台为准。",
     defaultBaseUrl: "https://api.moonshot.cn/v1",
     modelPlaceholder: "例如：moonshot-v1-8k",
     apiKeyPlaceholder: "请输入 Moonshot API Key",
@@ -147,7 +152,9 @@ export function getProviderConfig(provider: LLMProvider) {
 
 export async function getCurrentAiSettings(): Promise<AiSettings> {
   const settings = await getAllSettings();
-  const mode = normalizeAiMode(settings[AI_MODE_STORAGE_KEY] ?? settings.LLM_MODE);
+  const mode = normalizeAiMode(
+    settings[AI_MODE_STORAGE_KEY] ?? settings.LLM_MODE,
+  );
   const provider = normalizeProvider(settings[LLM_PROVIDER_STORAGE_KEY]);
 
   return {

@@ -1,15 +1,30 @@
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { analyzePaperStructure } from "../analysis";
+import { listAiOutputsByPaper } from "../db/aiOutputs";
 import { listPaperChunks } from "../db/paperChunks";
 import { listPaperNotes } from "../db/paperNotes";
+import { listPaperQa } from "../db/paperQa";
+import { listPaperTags } from "../db/paperTags";
 import { getPaperById } from "../db/papers";
-import type { Paper, PaperChunk, PaperNote, PaperNoteType } from "../../types/paper";
+import { parseQaEvidence } from "../../features/paper-detail/evidence";
+import type {
+  AiOutput,
+  Paper,
+  PaperChunk,
+  PaperNote,
+  PaperNoteType,
+  PaperQa,
+  PaperReadingStatus,
+} from "../../types/paper";
 
 type MarkdownExportInput = {
   paper: Paper;
   chunks: PaperChunk[];
   notes: PaperNote[];
+  qaHistory: PaperQa[];
+  aiOutputs: AiOutput[];
+  tags: string[];
 };
 
 type MarkdownExportResult =
@@ -22,6 +37,13 @@ const statusLabels: Record<Paper["status"], string> = {
   parsed: "已解析",
   parse_failed: "解析失败",
   noted: "已生成笔记",
+};
+
+const readingStatusLabels: Record<PaperReadingStatus, string> = {
+  unread: "未读",
+  reading: "阅读中",
+  read: "已读",
+  archived: "归档",
 };
 
 export function formatNoteType(noteType: PaperNoteType) {
@@ -128,7 +150,9 @@ function buildLocalAnalysisMarkdown(chunks: PaperChunk[]) {
     `- 是否包含结果：${yesNo(stats.hasResults)}`,
     `- 是否包含结论：${yesNo(stats.hasConclusion)}`,
     `- 是否包含参考文献：${yesNo(stats.hasReferences)}`,
-    stats.structureMayBeIncomplete ? "- 结构提示：章节识别可能不完整，建议结合原文核对。" : "",
+    stats.structureMayBeIncomplete
+      ? "- 结构提示：章节识别可能不完整，建议结合原文核对。"
+      : "",
     "",
     "### 2.2 章节结构概览",
     "",
@@ -187,15 +211,66 @@ function buildNotesMarkdown(notes: PaperNote[]) {
     .join("\n\n");
 }
 
+function buildAiOutputsMarkdown(outputs: AiOutput[]) {
+  if (outputs.length === 0) return "暂无 AI 结果历史。";
+  return outputs
+    .map((output, index) =>
+      [
+        `### ${index + 1}. ${output.title}`,
+        "",
+        `- 动作：${output.action}`,
+        `- Provider：${output.provider}`,
+        `- Model：${output.model || "未记录"}`,
+        `- 时间：${formatDateTime(output.created_at)}`,
+        "",
+        output.content,
+      ].join("\n"),
+    )
+    .join("\n\n");
+}
+
+function buildQaMarkdown(qaHistory: PaperQa[]) {
+  if (qaHistory.length === 0) return "暂无论文问答记录。";
+  return qaHistory
+    .map((qa, index) => {
+      const evidence = parseQaEvidence(qa.evidence);
+      const evidenceText =
+        evidence.items.length > 0
+          ? evidence.items
+              .map(
+                (item) =>
+                  `- Chunk ${item.chunk_index + 1}${
+                    item.section_title ? ` / ${item.section_title}` : ""
+                  }：${item.snippet}`,
+              )
+              .join("\n")
+          : evidence.legacyText || "未记录结构化证据。";
+      return [
+        `### 问答 ${index + 1}`,
+        "",
+        `**问题：** ${qa.question}`,
+        "",
+        `**回答：**`,
+        "",
+        qa.answer,
+        "",
+        "**证据分块：**",
+        "",
+        evidenceText,
+      ].join("\n");
+    })
+    .join("\n\n");
+}
+
 export function buildPaperMarkdownExport(input: MarkdownExportInput) {
-  const { paper, chunks, notes } = input;
+  const { paper, chunks, notes, qaHistory, aiOutputs, tags } = input;
 
   return [
     "# 论文阅读笔记",
     "",
     "## 一、论文基本信息",
     "",
-    `- 标题：${fallback(paper.title, "未填写")}`,
+    `- 标题：${fallback(paper.title)}`,
     `- 作者：${fallback(paper.authors, "原文未明确说明")}`,
     `- 年份：${fallback(paper.year, "原文未明确说明")}`,
     `- 期刊 / 会议：${fallback(paper.journal, "原文未明确说明")}`,
@@ -203,6 +278,9 @@ export function buildPaperMarkdownExport(input: MarkdownExportInput) {
     `- 文件路径：\`${fallback(paper.file_path, "未记录")}\``,
     `- 导入时间：${formatDateTime(paper.created_at)}`,
     `- 当前状态：${statusLabels[paper.status]}`,
+    `- 阅读状态：${readingStatusLabels[paper.reading_status]}`,
+    `- 重点收藏：${paper.is_favorite === 1 ? "是" : "否"}`,
+    `- 标签：${tags.length > 0 ? tags.join("、") : "未添加"}`,
     "",
     "## 二、本地分析结果",
     "",
@@ -216,7 +294,15 @@ export function buildPaperMarkdownExport(input: MarkdownExportInput) {
     "",
     buildNotesMarkdown(notes),
     "",
-    "## 五、导出信息",
+    "## 五、AI 结果历史",
+    "",
+    buildAiOutputsMarkdown(aiOutputs),
+    "",
+    "## 六、论文问答记录",
+    "",
+    buildQaMarkdown(qaHistory),
+    "",
+    "## 七、导出信息",
     "",
     "- 导出工具：文献透镜 / PaperLens",
     `- 导出时间：${formatDateTime(new Date())}`,
@@ -233,11 +319,21 @@ export async function exportPaperToMarkdown(
     throw new Error("未找到该论文记录，无法导出。");
   }
 
-  const [chunks, notes] = await Promise.all([
+  const [chunks, notes, qaHistory, aiOutputs, tags] = await Promise.all([
     listPaperChunks(paperId),
     listPaperNotes(paperId),
+    listPaperQa(paperId),
+    listAiOutputsByPaper(paperId),
+    listPaperTags(paperId),
   ]);
-  const content = buildPaperMarkdownExport({ paper, chunks, notes });
+  const content = buildPaperMarkdownExport({
+    paper,
+    chunks,
+    notes,
+    qaHistory,
+    aiOutputs,
+    tags: tags.map((tag) => tag.tag),
+  });
   const defaultPath = buildDefaultFileName(paper);
 
   const filePath = await save({

@@ -54,7 +54,9 @@ export function extractKeySentences(
   keywords: PaperKeyword[],
   limit = 8,
 ): PaperKeySentence[] {
-  const keywordTexts = keywords.slice(0, 12).map((keyword) => keyword.text.toLowerCase());
+  const keywordTexts = keywords
+    .slice(0, 12)
+    .map((keyword) => keyword.text.toLowerCase());
   const candidates: PaperKeySentence[] = [];
 
   for (const chunk of chunks) {
@@ -63,10 +65,14 @@ export function extractKeySentences(
       const keywordHits = keywordTexts.filter((keyword) =>
         lowerSentence.includes(keyword),
       ).length;
-      const cueHits = cueWords.filter((word) => lowerSentence.includes(word)).length;
+      const cueHits = cueWords.filter((word) =>
+        lowerSentence.includes(word),
+      ).length;
       const sectionBoost = isImportantSection(chunk.section_title) ? 2 : 0;
-      const lengthScore = sentence.length >= 80 && sentence.length <= 240 ? 1 : 0;
-      const score = keywordHits * 2 + cueHits * 1.5 + sectionBoost + lengthScore;
+      const lengthScore =
+        sentence.length >= 80 && sentence.length <= 240 ? 1 : 0;
+      const score =
+        keywordHits * 2 + cueHits * 1.5 + sectionBoost + lengthScore;
 
       if (score > 0) {
         candidates.push({

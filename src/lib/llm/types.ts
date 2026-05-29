@@ -1,4 +1,8 @@
-export type AiMode = "local_basic" | "prompt_only" | "custom_api" | "local_model";
+export type AiMode =
+  | "local_basic"
+  | "prompt_only"
+  | "custom_api"
+  | "local_model";
 
 export type LegacyAiMode = AiMode | "off";
 
@@ -51,4 +55,16 @@ export interface ProviderConfig {
   modelPlaceholder: string;
   apiKeyPlaceholder: string;
   adapter: "openai_compatible" | "anthropic" | "gemini" | "placeholder";
+}
+
+export interface AiConnectionTestResult {
+  ok: boolean;
+  message: string;
+  testedAt: string;
+  provider: LLMProvider;
+  model: string;
+  adapter: ProviderConfig["adapter"];
+  requestSent: boolean;
+  responseOk: boolean;
+  errorType?: import("../../types/paper").LlmErrorType;
 }

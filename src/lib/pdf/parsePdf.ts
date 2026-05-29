@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { detectScannedPdf } from "../ocr";
 import type { PaperChunkInput } from "../../types/paper";
 
 const MIN_CHUNK_LENGTH = 500;
@@ -36,10 +37,19 @@ export async function parsePdfText(filePath: string): Promise<string> {
   }
 
   try {
-    return await invoke<string>("extract_pdf_text", { filePath });
+    const text = await invoke<string>("extract_pdf_text", { filePath });
+    const detection = detectScannedPdf(text);
+    if (detection.likelyScanned) {
+      throw new Error(
+        `${detection.reason} 当前版本暂不内置 OCR。建议：${detection.suggestions.join("；")}`,
+      );
+    }
+    return text;
   } catch (error) {
     console.error("Failed to parse PDF text", error);
-    throw new Error(error instanceof Error ? error.message : "PDF 文本解析失败。");
+    throw new Error(
+      error instanceof Error ? error.message : "PDF 文本解析失败。",
+    );
   }
 }
 
@@ -130,8 +140,9 @@ export function splitPaperTextIntoChunks(text: string): PaperChunkInput[] {
   const normalizedText = normalizeText(text);
 
   if (normalizedText.length < 200) {
+    const detection = detectScannedPdf(normalizedText);
     throw new Error(
-      "未能提取到有效文本，可能是扫描版 PDF。当前版本暂不支持 OCR，请使用带文本层的 PDF。",
+      `${detection.reason} 当前版本暂不内置 OCR。建议：${detection.suggestions.join("；")}`,
     );
   }
 

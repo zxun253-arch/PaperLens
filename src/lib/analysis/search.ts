@@ -51,5 +51,7 @@ export function searchPaperChunks(
       };
     })
     .filter((result) => result.score > 0)
-    .sort((a, b) => b.score - a.score || a.chunk.chunk_index - b.chunk.chunk_index);
+    .sort(
+      (a, b) => b.score - a.score || a.chunk.chunk_index - b.chunk.chunk_index,
+    );
 }
