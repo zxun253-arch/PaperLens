@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { detectScannedPdf } from "../ocr";
+import { detectScannedPdf, recognizePdfWithTesseract } from "../ocr";
 import type { PaperChunkInput } from "../../types/paper";
 
 const MIN_CHUNK_LENGTH = 500;
@@ -39,17 +39,16 @@ export async function parsePdfText(filePath: string): Promise<string> {
   try {
     const text = await invoke<string>("extract_pdf_text", { filePath });
     const detection = detectScannedPdf(text);
+
     if (detection.likelyScanned) {
-      throw new Error(
-        `${detection.reason} 当前版本暂不内置 OCR。建议：${detection.suggestions.join("；")}`,
-      );
+      const ocrResult = await recognizePdfWithTesseract(filePath);
+      return ocrResult.text;
     }
+
     return text;
   } catch (error) {
     console.error("Failed to parse PDF text", error);
-    throw new Error(
-      error instanceof Error ? error.message : "PDF 文本解析失败。",
-    );
+    throw new Error(error instanceof Error ? error.message : "PDF 文本解析失败。");
   }
 }
 
@@ -142,7 +141,7 @@ export function splitPaperTextIntoChunks(text: string): PaperChunkInput[] {
   if (normalizedText.length < 200) {
     const detection = detectScannedPdf(normalizedText);
     throw new Error(
-      `${detection.reason} 当前版本暂不内置 OCR。建议：${detection.suggestions.join("；")}`,
+      `${detection.reason} OCR 未能识别出足够文本。建议：${detection.suggestions.join("；")}`,
     );
   }
 

@@ -7,7 +7,14 @@ import { listPaperNotes } from "../db/paperNotes";
 import { listPaperQa } from "../db/paperQa";
 import { listPaperTags } from "../db/paperTags";
 import { getPaperById } from "../db/papers";
-import { parseQaEvidence } from "../../features/paper-detail/evidence";
+import { parseQaEvidence } from "../evidence";
+import { notifyBeforeExport } from "../../plugins/pluginSystem";
+import {
+  fallback,
+  formatDate,
+  sanitizeFileName,
+  yesNo,
+} from "../../utils/format";
 import type {
   AiOutput,
   Paper,
@@ -33,43 +40,15 @@ const readingStatusLabels: Record<PaperReadingStatus, string> = {
   archived: "归档",
 };
 
-function fallback(value: string | null | undefined, emptyText = "未填写") {
-  return value?.trim() ? value : emptyText;
-}
-
-function formatDateTime(value: string | Date) {
-  return new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
-
 function formatNoteType(type: PaperNote["note_type"]) {
   if (type === "ai_paste") return "外部 AI 回填结果";
   if (type === "ai_generated") return "AI 生成结果";
   return "手动笔记";
 }
 
-function yesNo(value: boolean) {
-  return value ? "是" : "否";
-}
-
-function sanitizeFileName(name: string) {
-  const clean =
-    name
-      .replace(/[\\/:*?"<>|]/g, "-")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 120) || "文献透镜-论文阅读笔记";
-  return clean.toLowerCase().endsWith(".docx") ? clean : `${clean}.docx`;
-}
-
 function buildDefaultFileName(paper: Paper) {
   const title = paper.title?.trim() || paper.file_name.replace(/\.pdf$/i, "");
-  return sanitizeFileName(`文献透镜-论文阅读笔记-${title}`);
+  return sanitizeFileName(`文献透镜-论文阅读笔记-${title}`, "docx");
 }
 
 function buildChildren(
@@ -122,7 +101,7 @@ function buildChildren(
       ["期刊 / 会议", fallback(paper.journal, "原文未明确说明")],
       ["文件名", paper.file_name],
       ["文件路径", fallback(paper.file_path, "未记录")],
-      ["导入时间", formatDateTime(paper.created_at)],
+      ["导入时间", formatDate(paper.created_at)],
       ["当前状态", paper.status],
       ["阅读状态", readingStatusLabels[paper.reading_status]],
       ["重点收藏", paper.is_favorite === 1 ? "是" : "否"],
@@ -199,7 +178,7 @@ function buildChildren(
         `${formatNoteType(note.note_type)}：${note.title}`,
         HeadingLevel.HEADING_2,
       ),
-      paragraph(`更新时间：${formatDateTime(note.updated_at)}`),
+      paragraph(`更新时间：${formatDate(note.updated_at)}`),
       paragraph(note.note_content),
     );
     if (note.note_type !== "manual") {
@@ -248,7 +227,7 @@ function buildChildren(
   children.push(
     heading("六、导出信息", HeadingLevel.HEADING_1),
     paragraph("导出工具：文献透镜 / PaperLens"),
-    paragraph(`导出时间：${formatDateTime(new Date())}`),
+    paragraph(`导出时间：${formatDate(new Date())}`),
   );
 
   return children;
@@ -263,6 +242,7 @@ export async function exportPaperToWord(
       "未找到该论文记录，无法导出 Word。请返回论文库重新打开论文。",
     );
   }
+  await notifyBeforeExport("word", { paper: paper as unknown as Record<string, unknown> });
 
   const [chunks, notes, qaHistory, aiOutputs, tags, docx] = await Promise.all([
     listPaperChunks(paperId),

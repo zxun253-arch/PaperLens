@@ -12,6 +12,8 @@ export type ImportPdfResult =
   | { status: "cancelled" }
   | { status: "imported"; paper: Paper };
 
+type ImportPdfSource = string | File;
+
 export async function openPdfFile(): Promise<string | null> {
   const selected = await open({
     multiple: false,
@@ -28,6 +30,20 @@ export async function openPdfFile(): Promise<string | null> {
   }
 
   return selected;
+}
+
+export async function openPdfFiles(): Promise<string[]> {
+  const selected = await open({
+    multiple: true,
+    directory: false,
+    filters: [{ name: "PDF 鏂囦欢", extensions: ["pdf"] }],
+  });
+
+  if (!selected) {
+    return [];
+  }
+
+  return Array.isArray(selected) ? selected : [selected];
 }
 
 export function getFileNameFromPath(filePath: string): string {
@@ -63,8 +79,40 @@ async function getPdfFileInfo(filePath: string): Promise<FileInfo> {
   }
 }
 
-export async function importPdfAsPaper(): Promise<ImportPdfResult> {
-  const filePath = await openPdfFile();
+function getBrowserFilePath(file: File): string | null {
+  const fileWithPath = file as File & { path?: unknown };
+
+  return typeof fileWithPath.path === "string" && fileWithPath.path.trim()
+    ? fileWithPath.path
+    : null;
+}
+
+export async function importPdfAsPaper(
+  source?: ImportPdfSource,
+): Promise<ImportPdfResult> {
+  if (source instanceof File) {
+    if (!source.name.toLowerCase().endsWith(".pdf")) {
+      throw new Error("请选择 PDF 文件。");
+    }
+
+    const filePath = getBrowserFilePath(source);
+    const fileInfo = filePath
+      ? await getPdfFileInfo(filePath)
+      : { file_name: source.name, file_size: source.size };
+    const fileName = fileInfo.file_name || source.name;
+
+    const paper = await createPaper({
+      title: fileName.replace(/\.pdf$/i, ""),
+      file_name: fileName,
+      file_path: filePath,
+      file_size: fileInfo.file_size,
+      status: "unparsed",
+    });
+
+    return { status: "imported", paper };
+  }
+
+  const filePath = source ?? (await openPdfFile());
 
   if (!filePath) {
     return { status: "cancelled" };
@@ -88,4 +136,38 @@ export async function importPdfAsPaper(): Promise<ImportPdfResult> {
   });
 
   return { status: "imported", paper };
+}
+
+export async function importPdfPathAsPaper(filePath: string): Promise<Paper> {
+  ensurePdfPath(filePath);
+
+  const fileInfo = await getPdfFileInfo(filePath);
+  const fileName = fileInfo.file_name || getFileNameFromPath(filePath);
+
+  if (!fileName.toLowerCase().endsWith(".pdf")) {
+    throw new Error("请选择 PDF 文件。");
+  }
+
+  return createPaper({
+    title: fileName.replace(/\.pdf$/i, ""),
+    file_name: fileName,
+    file_path: filePath,
+    file_size: fileInfo.file_size,
+    status: "unparsed",
+  });
+}
+
+export async function batchImportPdf(
+  files: string[],
+  onProgress: (current: number, total: number) => void,
+): Promise<Paper[]> {
+  const results: Paper[] = [];
+  const total = files.length;
+
+  for (const [index, filePath] of files.entries()) {
+    onProgress(index + 1, total);
+    results.push(await importPdfPathAsPaper(filePath));
+  }
+
+  return results;
 }

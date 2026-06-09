@@ -1,4 +1,4 @@
-import type { PaperQa, QaEvidenceItem } from "../../types/paper";
+import type { PaperQa, QaEvidenceItem } from "../types/paper";
 
 export function parseQaEvidence(evidence: PaperQa["evidence"]): {
   items: QaEvidenceItem[];

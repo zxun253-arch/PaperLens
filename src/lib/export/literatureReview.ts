@@ -1,21 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
+import { sanitizeFileName } from "../../utils/format";
 
 type ExportResult =
   | { status: "cancelled" }
   | { status: "exported"; filePath: string };
-
-function sanitizeFileName(name: string, extension: "md" | "docx") {
-  const clean =
-    name
-      .replace(/[\\/:*?"<>|]/g, "-")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 120) || "文献透镜-文献综述草稿";
-  return clean.toLowerCase().endsWith(`.${extension}`)
-    ? clean
-    : `${clean}.${extension}`;
-}
 
 export async function exportLiteratureReviewMarkdown(
   title: string,
@@ -61,7 +50,7 @@ export async function exportLiteratureReviewWord(
     : `${filePath}.docx`;
   const { Document, HeadingLevel, Packer, Paragraph, TextRun } =
     await import("docx");
-  const paragraphs = (content || "暂无内容。").split(/\n{1,}/).map(
+  const paragraphs = (content || "暂无内容。").split(/\n{2,}/).map(
     (line) =>
       new Paragraph({
         children: [new TextRun(line || " ")],

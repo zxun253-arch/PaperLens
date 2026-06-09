@@ -9,6 +9,7 @@
     "dialog:allow-open",
     "dialog:allow-save",
     "sql:default",
-    "sql:allow-execute"
+    "sql:allow-execute",
+    "http:default"
   ]
 }

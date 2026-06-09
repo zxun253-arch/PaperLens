@@ -1,5 +1,5 @@
 import { getDatabase } from "./database";
-import type { CreatePaperInput, Paper } from "../../types/paper";
+import type { CreatePaperInput, Paper, PaperWithTags } from "../../types/paper";
 
 type UpdatePaperInput = Partial<Omit<CreatePaperInput, "id">>;
 
@@ -10,8 +10,10 @@ function createId(prefix: string) {
 export async function listPapers(): Promise<Paper[]> {
   try {
     const db = await getDatabase();
-    return db.select<Paper[]>(
-      "SELECT * FROM papers ORDER BY created_at DESC, updated_at DESC",
+    return db.select<PaperWithTags[]>(
+      `SELECT p.*,
+        (SELECT COUNT(*) FROM paper_notes pn WHERE pn.paper_id = p.id) as note_count
+      FROM papers p ORDER BY p.created_at DESC, p.updated_at DESC`,
     );
   } catch (error) {
     console.error("Failed to list papers", error);

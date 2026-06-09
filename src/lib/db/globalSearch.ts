@@ -19,6 +19,21 @@ function resultId(type: GlobalSearchHitType, id: string) {
   return `${type}_${id}`;
 }
 
+/** Convert user plain-text query into FTS5 MATCH syntax */
+function buildFts5Query(keyword: string): string {
+  const terms = keyword
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((t) => {
+      // Escape any double-quotes inside the term
+      const clean = t.replace(/"/g, "");
+      // Use prefix matching for better UX
+      return `"${clean}"*`;
+    });
+  return terms.join(" AND ");
+}
+
 export async function globalSearch(
   query: string,
   limit = 80,
@@ -30,6 +45,7 @@ export async function globalSearch(
   const like = `%${keyword}%`;
   const results: GlobalSearchResult[] = [];
 
+  // ——— Papers ———
   const papers = await db.select<
     Array<{
       id: string;
@@ -69,27 +85,67 @@ export async function globalSearch(
     });
   }
 
-  const chunks = await db.select<
-    Array<{
-      id: string;
-      paper_id: string;
-      chunk_index: number;
-      section_title: string | null;
-      content: string;
-      title: string | null;
-      file_name: string;
-      created_at: string;
-    }>
-  >(
-    `SELECT c.id, c.paper_id, c.chunk_index, c.section_title, c.content,
-            p.title, p.file_name, c.created_at
-     FROM paper_chunks c
-     JOIN papers p ON p.id = c.paper_id
-     WHERE c.content LIKE $1 OR c.section_title LIKE $1
-     ORDER BY c.paper_id, c.chunk_index ASC
-     LIMIT $2`,
-    [like, limit],
-  );
+  // ——— Paper Chunks (FTS5 with LIKE fallback) ———
+  const ftsQuery = buildFts5Query(keyword);
+  let chunks: Array<{
+    id: string;
+    paper_id: string;
+    chunk_index: number;
+    section_title: string | null;
+    content: string;
+    title: string | null;
+    file_name: string;
+    created_at: string;
+  }> = [];
+
+  try {
+    chunks = await db.select<
+      Array<{
+        id: string;
+        paper_id: string;
+        chunk_index: number;
+        section_title: string | null;
+        content: string;
+        title: string | null;
+        file_name: string;
+        created_at: string;
+      }>
+    >(
+      `SELECT c.id, c.paper_id, c.chunk_index, c.section_title, c.content,
+              p.title, p.file_name, c.created_at
+       FROM paper_chunks_fts fts
+       JOIN paper_chunks c ON c.rowid = fts.rowid
+       JOIN papers p ON p.id = c.paper_id
+       WHERE paper_chunks_fts MATCH $1
+       ORDER BY c.paper_id, c.chunk_index ASC
+       LIMIT $2`,
+      [ftsQuery, limit],
+    );
+  } catch (ftsError) {
+    console.warn("FTS5 search failed, falling back to LIKE:", ftsError);
+    // FTS5 unavailable or query failed — fall back to LIKE
+    chunks = await db.select<
+      Array<{
+        id: string;
+        paper_id: string;
+        chunk_index: number;
+        section_title: string | null;
+        content: string;
+        title: string | null;
+        file_name: string;
+        created_at: string;
+      }>
+    >(
+      `SELECT c.id, c.paper_id, c.chunk_index, c.section_title, c.content,
+              p.title, p.file_name, c.created_at
+       FROM paper_chunks c
+       JOIN papers p ON p.id = c.paper_id
+       WHERE c.content LIKE $1 OR c.section_title LIKE $1
+       ORDER BY c.paper_id, c.chunk_index ASC
+       LIMIT $2`,
+      [like, limit],
+    );
+  }
 
   for (const chunk of chunks) {
     results.push({
@@ -106,6 +162,7 @@ export async function globalSearch(
     });
   }
 
+  // ——— Notes ———
   const notes = await db.select<
     Array<{
       id: string;
@@ -140,6 +197,7 @@ export async function globalSearch(
     });
   }
 
+  // ——— QA ———
   const qaRows = await db.select<
     Array<{
       id: string;
@@ -174,6 +232,42 @@ export async function globalSearch(
     });
   }
 
+  // ——— Annotations ———
+  const annRows = await db.select<
+    Array<{
+      id: string;
+      paper_id: string;
+      selected_text: string | null;
+      note: string | null;
+      title: string | null;
+      file_name: string;
+      created_at: string;
+    }>
+  >(
+    `SELECT a.id, a.paper_id, a.selected_text, a.note,
+            p.title AS paper_title, p.file_name, a.created_at
+     FROM paper_annotations a
+     JOIN papers p ON p.id = a.paper_id
+     WHERE a.selected_text LIKE $1 OR a.note LIKE $1
+     ORDER BY a.created_at DESC
+     LIMIT $2`,
+    [like, limit],
+  );
+
+  for (const ann of annRows) {
+    results.push({
+      id: resultId("annotation", ann.id),
+      paper_id: ann.paper_id,
+      paper_title: ann.title,
+      file_name: ann.file_name,
+      hit_type: "annotation",
+      label: "论文标注",
+      snippet: makeSnippet(ann.selected_text ?? ann.note ?? "", keyword),
+      created_at: ann.created_at,
+    });
+  }
+
+  // ——— Tags ———
   const tags = await db.select<
     Array<{
       id: string;

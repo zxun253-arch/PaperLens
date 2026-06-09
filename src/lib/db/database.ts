@@ -102,6 +102,20 @@ const schemaStatements = [
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );`,
+  `CREATE TABLE IF NOT EXISTS paper_annotations (
+    id TEXT PRIMARY KEY,
+    paper_id TEXT NOT NULL,
+    chunk_id TEXT,
+    annotation_type TEXT NOT NULL DEFAULT 'highlight',
+    color TEXT DEFAULT '#FFFF00',
+    start_offset INTEGER,
+    end_offset INTEGER,
+    selected_text TEXT,
+    note TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (paper_id) REFERENCES papers(id) ON DELETE CASCADE
+  );`,
 ];
 
 async function ensureColumn(
@@ -146,6 +160,58 @@ async function runCompatibleMigrations(db: Database) {
   );
 }
 
+async function setupFts5(db: Database) {
+  try {
+    // Check if FTS5 table already exists
+    const existing = await db.select<Array<{ name: string }>>(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='paper_chunks_fts'",
+    );
+    if (existing.length > 0) return;
+
+    // Create FTS5 virtual table for paper_chunks full-text search
+    await db.execute(
+      `CREATE VIRTUAL TABLE paper_chunks_fts USING fts5(
+        section_title, content,
+        content='paper_chunks',
+        content_rowid='rowid',
+        tokenize='unicode61'
+      )`,
+    );
+
+    // Triggers to keep FTS5 index in sync with paper_chunks
+    await db.execute(
+      `CREATE TRIGGER IF NOT EXISTS paper_chunks_fts_ai AFTER INSERT ON paper_chunks BEGIN
+        INSERT INTO paper_chunks_fts(rowid, section_title, content)
+        VALUES (new.rowid, new.section_title, new.content);
+      END`,
+    );
+    await db.execute(
+      `CREATE TRIGGER IF NOT EXISTS paper_chunks_fts_ad AFTER DELETE ON paper_chunks BEGIN
+        INSERT INTO paper_chunks_fts(paper_chunks_fts, rowid, section_title, content)
+        VALUES ('delete', old.rowid, old.section_title, old.content);
+      END`,
+    );
+    await db.execute(
+      `CREATE TRIGGER IF NOT EXISTS paper_chunks_fts_au AFTER UPDATE ON paper_chunks BEGIN
+        INSERT INTO paper_chunks_fts(paper_chunks_fts, rowid, section_title, content)
+        VALUES ('delete', old.rowid, old.section_title, old.content);
+        INSERT INTO paper_chunks_fts(rowid, section_title, content)
+        VALUES (new.rowid, new.section_title, new.content);
+      END`,
+    );
+
+    // Populate FTS5 with existing data
+    await db.execute(
+      `INSERT INTO paper_chunks_fts(rowid, section_title, content)
+       SELECT rowid, section_title, content FROM paper_chunks`,
+    );
+
+    console.log("FTS5 full-text search index created for paper_chunks");
+  } catch (error) {
+    console.warn("FTS5 setup failed, falling back to LIKE search:", error);
+  }
+}
+
 async function loadDatabase() {
   if (!databasePromise) {
     databasePromise = Database.load(DATABASE_URL);
@@ -165,6 +231,7 @@ export async function initDatabase() {
       }
 
       await runCompatibleMigrations(db);
+      await setupFts5(db);
 
       return db;
     })();
@@ -175,8 +242,4 @@ export async function initDatabase() {
 
 export async function getDatabase() {
   return initDatabase();
-}
-
-export function getDatabaseUrl() {
-  return DATABASE_URL;
 }

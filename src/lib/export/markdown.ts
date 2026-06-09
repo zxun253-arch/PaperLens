@@ -7,7 +7,9 @@ import { listPaperNotes } from "../db/paperNotes";
 import { listPaperQa } from "../db/paperQa";
 import { listPaperTags } from "../db/paperTags";
 import { getPaperById } from "../db/papers";
-import { parseQaEvidence } from "../../features/paper-detail/evidence";
+import { parseQaEvidence } from "../evidence";
+import { notifyBeforeExport } from "../../plugins/pluginSystem";
+import { sanitizeFileName } from "../../utils/format";
 import type {
   AiOutput,
   Paper,
@@ -74,23 +76,9 @@ function escapeTableCell(value: string) {
   return value.replace(/\|/g, "\\|").replace(/\n/g, " ");
 }
 
-function ensureMdExtension(fileName: string) {
-  return fileName.toLowerCase().endsWith(".md") ? fileName : `${fileName}.md`;
-}
-
-export function sanitizeFileName(name: string) {
-  return ensureMdExtension(
-    name
-      .replace(/[\\/:*?"<>|]/g, "-")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 120) || "文献透镜-论文阅读笔记",
-  );
-}
-
 function buildDefaultFileName(paper: Paper) {
   const title = paper.title?.trim() || paper.file_name.replace(/\.pdf$/i, "");
-  return sanitizeFileName(`文献透镜-论文阅读笔记-${title}`);
+  return sanitizeFileName(`文献透镜-论文阅读笔记-${title}`, "md");
 }
 
 function buildLocalAnalysisMarkdown(chunks: PaperChunk[]) {
@@ -262,10 +250,42 @@ function buildQaMarkdown(qaHistory: PaperQa[]) {
     .join("\n\n");
 }
 
+function buildFrontMatter(paper: Paper, tags: string[]) {
+  const yamlValue = (value: string | null | undefined) => {
+    if (!value?.trim()) return '""';
+    return JSON.stringify(value.trim());
+  };
+  return [
+    "---",
+    `title: ${yamlValue(paper.title || paper.file_name.replace(/\.pdf$/i, ""))}`,
+    `authors: ${yamlValue(paper.authors)}`,
+    `year: ${yamlValue(paper.year)}`,
+    `journal: ${yamlValue(paper.journal)}`,
+    `tags: [${tags.map((t) => yamlValue(t)).join(", ")}]`,
+    `file_name: ${yamlValue(paper.file_name)}`,
+    `reading_status: ${yamlValue(paper.reading_status)}`,
+    "---",
+  ].join("\n");
+}
+
+function buildCitationReference(paper: Paper) {
+  const parts = [
+    paper.authors,
+    paper.year ? `(${paper.year})` : null,
+    paper.title,
+    paper.journal,
+  ].filter((part): part is string => Boolean(part?.trim()));
+  return parts.length > 0
+    ? parts.join(". ").replace(/\.+/g, ".")
+    : paper.file_name;
+}
+
 export function buildPaperMarkdownExport(input: MarkdownExportInput) {
   const { paper, chunks, notes, qaHistory, aiOutputs, tags } = input;
 
   return [
+    buildFrontMatter(paper, tags),
+    "",
     "# 论文阅读笔记",
     "",
     "## 一、论文基本信息",
@@ -302,7 +322,11 @@ export function buildPaperMarkdownExport(input: MarkdownExportInput) {
     "",
     buildQaMarkdown(qaHistory),
     "",
-    "## 七、导出信息",
+    "## 七、引用参考",
+    "",
+    buildCitationReference(paper),
+    "",
+    "## 八、导出信息",
     "",
     "- 导出工具：文献透镜 / PaperLens",
     `- 导出时间：${formatDateTime(new Date())}`,
@@ -318,6 +342,7 @@ export async function exportPaperToMarkdown(
   if (!paper) {
     throw new Error("未找到该论文记录，无法导出。");
   }
+  await notifyBeforeExport("markdown", { paper: paper as unknown as Record<string, unknown> });
 
   const [chunks, notes, qaHistory, aiOutputs, tags] = await Promise.all([
     listPaperChunks(paperId),

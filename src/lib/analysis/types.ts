@@ -36,6 +36,8 @@ export interface PaperSearchResult {
   score: number;
   matchCount: number;
   snippet: string;
+  relevanceScore?: number;
+  source?: "keyword" | "semantic" | "hybrid";
 }
 
 export interface PaperAnalysisResult {

@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { PageHeader } from "../components/PageHeader";
+import { Spinner } from "../components/Spinner";
 import { createAiOutput } from "../lib/db/aiOutputs";
 import {
   createLiteratureReview,
+  deleteLiteratureReview,
   listLiteratureReviews,
 } from "../lib/db/literatureReviews";
 import {
@@ -217,45 +219,47 @@ export function PaperComparePage() {
       />
 
       {message ? (
-        <div className="mb-4 rounded border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div className="mb-4 rounded border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300">
           {message}
         </div>
       ) : null}
       {error ? (
-        <div className="mb-4 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300">
           {error}
         </div>
       ) : null}
 
       {isLoading ? (
-        <div className="rounded border border-slate-200 bg-white p-8 text-sm text-slate-500">
+        <div className="rounded border border-slate-200 bg-white p-8 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
           正在加载对比数据...
         </div>
       ) : items.length < 2 ? (
-        <div className="rounded border border-dashed border-slate-300 bg-white p-10 text-center">
-          <h3 className="text-lg font-semibold text-slate-900">论文数量不足</h3>
-          <p className="mt-3 text-sm text-slate-500">
-            请回到论文库选择 2-5 篇论文后再进行对比。
+        <div className="rounded border border-dashed border-slate-300 bg-white p-10 text-center dark:border-slate-600 dark:bg-slate-800">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
+            请选择要对比的论文
+          </h3>
+          <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-500 dark:text-slate-400">
+            请先到论文库勾选 2-5 篇论文，然后点击「对比」按钮进入此页面。
           </p>
           <Link
-            className="mt-4 inline-block text-sm font-semibold text-cyan-800"
+            className="mt-6 inline-flex rounded bg-cyan-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-cyan-800 dark:bg-cyan-600 dark:hover:bg-cyan-700"
             to="/library"
           >
-            返回论文库
+            前往论文库选择论文
           </Link>
         </div>
       ) : (
         <div className="space-y-6">
-          <div className="rounded border border-cyan-200 bg-cyan-50 p-4 text-sm leading-6 text-cyan-900">
+          <div className="rounded border border-cyan-200 bg-cyan-50 p-4 text-sm leading-6 text-cyan-900 dark:border-cyan-900 dark:bg-cyan-950/50 dark:text-cyan-200">
             <strong>工作流说明：</strong>
             基础对比不需要 API；Prompt 可以复制到外部 AI；
             只有切换到自定义大模型 API 模式后，才会在 App
             内调用用户自己的模型服务。
           </div>
 
-          <div className="overflow-x-auto rounded border border-slate-200 bg-white">
+          <div className="overflow-x-auto rounded border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
             <table className="min-w-full text-left text-sm">
-              <thead className="bg-slate-50 text-slate-600">
+              <thead className="bg-slate-50 text-slate-600 dark:bg-slate-900/60 dark:text-slate-300">
                 <tr>
                   <th className="px-4 py-3">论文</th>
                   <th className="px-4 py-3">作者</th>
@@ -269,35 +273,35 @@ export function PaperComparePage() {
               <tbody>
                 {items.map((item) => (
                   <tr
-                    className="border-t border-slate-200 align-top"
+                    className="border-t border-slate-200 align-top dark:border-slate-700"
                     key={item.paper.id}
                   >
-                    <td className="px-4 py-3 font-semibold text-slate-900">
+                    <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-50">
                       <Link
-                        className="hover:text-cyan-800"
+                        className="hover:text-cyan-800 dark:hover:text-cyan-300"
                         to={`/papers/${item.paper.id}`}
                       >
                         {titleOf(item)}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-slate-600">
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                       {item.paper.authors || "原文未明确说明"}
                     </td>
-                    <td className="px-4 py-3 text-slate-600">
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                       {item.paper.year || "原文未明确说明"}
                     </td>
-                    <td className="px-4 py-3 text-slate-600">
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                       {item.paper.research_field || "原文未明确说明"}
                     </td>
-                    <td className="px-4 py-3 text-slate-600">
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                       {item.keywords.join("、") ||
                         item.paper.keywords ||
                         "未提取"}
                     </td>
-                    <td className="px-4 py-3 text-slate-600">
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                       {item.tags.join("、") || "未添加"}
                     </td>
-                    <td className="max-w-xs px-4 py-3 text-slate-600">
+                    <td className="max-w-xs px-4 py-3 text-slate-600 dark:text-slate-300">
                       {item.noteSummary || "暂无笔记"}
                     </td>
                   </tr>
@@ -307,84 +311,94 @@ export function PaperComparePage() {
           </div>
 
           <div className="grid gap-6 xl:grid-cols-2">
-            <div className="rounded border border-slate-200 bg-white p-5">
-              <h3 className="text-base font-semibold text-slate-950">
+            <div className="rounded border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800">
+              <h3 className="text-base font-semibold text-slate-950 dark:text-slate-50">
                 多论文对比 Prompt
               </h3>
-              <p className="mt-2 text-sm text-slate-500">
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
                 无 API 时可复制到外部 AI；custom_api 模式下可在 App 内生成。
               </p>
               <textarea
-                className="mt-4 h-80 w-full resize-y rounded border border-slate-300 bg-slate-50 p-3 text-xs leading-6 text-slate-700"
+                className="mt-4 h-80 w-full resize-y rounded border border-slate-300 bg-slate-50 p-3 text-xs leading-6 text-slate-700 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-200"
                 readOnly
                 value={prompt}
               />
               <div className="mt-3 flex flex-wrap gap-3">
                 <button
-                  className="rounded bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                  className="rounded bg-slate-900 px-4 py-2 text-sm font-semibold text-white dark:bg-slate-700"
                   onClick={() => void copyText(prompt, "对比 Prompt")}
                   type="button"
                 >
                   复制对比 Prompt
                 </button>
                 <button
-                  className="rounded bg-cyan-700 px-4 py-2 text-sm font-semibold text-white disabled:bg-cyan-400"
+                  className="rounded bg-cyan-700 px-4 py-2 text-sm font-semibold text-white disabled:bg-cyan-400 dark:bg-cyan-600 dark:disabled:bg-cyan-900"
                   disabled={!canCallApi || isCallingAi}
                   onClick={() => void callApiFor("compare")}
                   type="button"
                 >
-                  {isCallingAi ? "生成中..." : "使用 API 生成对比"}
+                  {isCallingAi ? <><Spinner />生成中...</> : "使用 API 生成对比"}
                 </button>
               </div>
+              {!canCallApi ? (
+                <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                  💡 当前非 custom_api 模式，请在设置页切换并保存配置后使用。
+                </p>
+              ) : null}
             </div>
 
-            <div className="rounded border border-slate-200 bg-white p-5">
-              <h3 className="text-base font-semibold text-slate-950">
+            <div className="rounded border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800">
+              <h3 className="text-base font-semibold text-slate-950 dark:text-slate-50">
                 文献综述辅助
               </h3>
-              <p className="mt-2 text-sm text-slate-500">
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
                 可生成综述 Prompt、保存草稿，并导出 Markdown / Word。AI
                 内容请结合原文核对。
               </p>
               <textarea
-                className="mt-4 h-56 w-full resize-y rounded border border-slate-300 bg-slate-50 p-3 text-xs leading-6 text-slate-700"
+                className="mt-4 h-56 w-full resize-y rounded border border-slate-300 bg-slate-50 p-3 text-xs leading-6 text-slate-700 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-200"
                 readOnly
                 value={reviewPrompt}
               />
               <div className="mt-3 flex flex-wrap gap-3">
                 <button
-                  className="rounded bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                  className="rounded bg-slate-900 px-4 py-2 text-sm font-semibold text-white dark:bg-slate-700"
                   onClick={() => void copyText(reviewPrompt, "综述 Prompt")}
                   type="button"
                 >
                   复制综述 Prompt
                 </button>
                 <button
-                  className="rounded bg-cyan-700 px-4 py-2 text-sm font-semibold text-white disabled:bg-cyan-400"
+                  className="rounded bg-cyan-700 px-4 py-2 text-sm font-semibold text-white disabled:bg-cyan-400 dark:bg-cyan-600 dark:disabled:bg-cyan-900"
                   disabled={!canCallApi || isCallingAi}
                   onClick={() => void callApiFor("review")}
                   type="button"
                 >
-                  {isCallingAi ? "生成中..." : "使用 API 生成综述"}
+                  {isCallingAi ? <><Spinner />生成中...</> : "使用 API 生成综述"}
                 </button>
               </div>
+              {!canCallApi ? (
+                <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                  💡 当前非 custom_api 模式，请在设置页切换并保存配置后使用。
+                </p>
+              ) : null}
 
               <label className="mt-5 block">
-                <span className="text-sm font-medium text-slate-700">
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
                   草稿标题
                 </span>
                 <input
-                  className="mt-2 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                  className="mt-2 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                   value={resultTitle}
                   onChange={(event) => setResultTitle(event.target.value)}
                 />
               </label>
               <label className="mt-3 block">
-                <span className="text-sm font-medium text-slate-700">
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
                   综述草稿 / 对比结果
                 </span>
                 <textarea
-                  className="mt-2 h-72 w-full resize-y rounded border border-slate-300 p-3 text-sm leading-6"
+                  className="mt-2 h-72 w-full resize-y rounded border border-slate-300 bg-white p-3 text-sm leading-6 text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                   value={resultContent}
                   onChange={(event) => setResultContent(event.target.value)}
                   placeholder="可粘贴外部 AI 结果，或使用自定义 API 生成。"
@@ -392,14 +406,14 @@ export function PaperComparePage() {
               </label>
               <div className="mt-3 flex flex-wrap gap-3">
                 <button
-                  className="rounded bg-cyan-700 px-4 py-2 text-sm font-semibold text-white"
+                  className="rounded bg-cyan-700 px-4 py-2 text-sm font-semibold text-white dark:bg-cyan-600"
                   onClick={() => void saveReview()}
                   type="button"
                 >
                   保存综述草稿
                 </button>
                 <button
-                  className="rounded border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-60"
+                  className="rounded border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-60 dark:border-slate-600 dark:text-slate-200"
                   disabled={isExporting}
                   onClick={() => void exportMarkdown()}
                   type="button"
@@ -407,7 +421,7 @@ export function PaperComparePage() {
                   {isExporting ? "导出中..." : "导出综述 Markdown"}
                 </button>
                 <button
-                  className="rounded border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-60"
+                  className="rounded border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-60 dark:border-slate-600 dark:text-slate-200"
                   disabled={isExporting}
                   onClick={() => void exportWord()}
                   type="button"
@@ -416,34 +430,48 @@ export function PaperComparePage() {
                 </button>
               </div>
 
-              <div className="mt-5 rounded border border-slate-200 bg-slate-50 p-4">
-                <h4 className="text-sm font-semibold text-slate-900">
+              <div className="mt-5 rounded border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/60">
+                <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
                   已保存综述草稿
                 </h4>
                 {savedReviews.length === 0 ? (
-                  <p className="mt-2 text-sm text-slate-500">
+                  <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
                     暂无本地综述草稿。
                   </p>
                 ) : (
                   <div className="mt-3 max-h-56 space-y-2 overflow-y-auto">
                     {savedReviews.slice(0, 8).map((review) => (
-                      <button
-                        key={review.id}
-                        className="block w-full rounded border border-slate-200 bg-white p-3 text-left text-sm hover:border-cyan-700"
-                        type="button"
-                        onClick={() => {
-                          setResultTitle(review.title);
-                          setResultContent(review.content);
-                        }}
-                      >
-                        <span className="font-semibold text-slate-900">
-                          {review.title}
-                        </span>
-                        <span className="mt-1 block text-xs text-slate-500">
-                          更新时间：
-                          {new Date(review.updated_at).toLocaleString("zh-CN")}
-                        </span>
-                      </button>
+                      <div key={review.id} className="flex items-start gap-2">
+                        <button
+                          className="min-w-0 flex-1 rounded border border-slate-200 bg-white p-3 text-left text-sm hover:border-cyan-700 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-cyan-500"
+                          type="button"
+                          onClick={() => {
+                            setResultTitle(review.title);
+                            setResultContent(review.content);
+                          }}
+                        >
+                          <span className="font-semibold text-slate-900 dark:text-slate-50">
+                            {review.title}
+                          </span>
+                          <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
+                            更新时间：
+                            {new Date(review.updated_at).toLocaleString("zh-CN")}
+                          </span>
+                        </button>
+                        <button
+                          className="mt-1 shrink-0 rounded border border-red-200 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300"
+                          onClick={async () => {
+                            if (window.confirm(`确定删除综述「${review.title}」？`)) {
+                              await deleteLiteratureReview(review.id);
+                              setSavedReviews(await listLiteratureReviews());
+                            }
+                          }}
+                          title="删除此综述"
+                          type="button"
+                        >
+                          ×
+                        </button>
+                      </div>
                     ))}
                   </div>
                 )}

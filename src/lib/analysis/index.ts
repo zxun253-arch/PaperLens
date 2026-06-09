@@ -1,7 +1,8 @@
 export { analyzePaperStructure } from "./paperAnalysis";
 export { extractKeywords } from "./keywords";
 export { extractKeySentences } from "./keySentences";
-export { searchPaperChunks } from "./search";
+export { semanticSearchPaperChunks } from "./semanticSearch";
+export { hybridSearchPaperChunks, searchPaperChunks } from "./search";
 export type {
   PaperAnalysisResult,
   PaperAnalysisStats,

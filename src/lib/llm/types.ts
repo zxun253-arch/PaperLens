@@ -4,8 +4,6 @@ export type AiMode =
   | "custom_api"
   | "local_model";
 
-export type LegacyAiMode = AiMode | "off";
-
 export type LLMProvider =
   | "openai_compatible"
   | "openai"
@@ -16,7 +14,21 @@ export type LLMProvider =
   | "gemini"
   | "moonshot"
   | "zhipu"
-  | "ollama";
+  | "siliconflow"
+  | "yi"
+  | "baichuan"
+  | "minimax"
+  | "groq"
+  | "together"
+  | "doubao"
+  | "spark"
+  | "ernie"
+  | "hunyuan"
+  | "stepfun"
+  | "perplexity"
+  | "mistral"
+  | "cohere"
+  | "opencode";
 
 export interface AiSettings {
   mode: AiMode;
@@ -37,6 +49,8 @@ export interface LlmRequest {
   maxTokens?: number;
 }
 
+export type StreamingCallback = (chunk: string) => void;
+
 export interface LLMCallResult {
   content: string;
   provider: LLMProvider;
@@ -52,6 +66,8 @@ export interface ProviderConfig {
   label: string;
   description: string;
   defaultBaseUrl: string;
+  defaultModel: string;
+  commonModels: string[];
   modelPlaceholder: string;
   apiKeyPlaceholder: string;
   adapter: "openai_compatible" | "anthropic" | "gemini" | "placeholder";

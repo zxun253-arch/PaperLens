@@ -8,13 +8,19 @@ import {
   buildPaperQaPrompt,
   buildReadingNotePrompt,
 } from "../prompts";
-import { callLLM, classifyLlmError, sanitizeLlmMessage } from "./provider";
+import {
+  callLLM,
+  classifyLlmError,
+  sanitizeLlmMessage,
+  streamLLM,
+} from "./provider";
 import { getProviderConfig } from "./settings";
-import type { AiSettings, LLMCallResult } from "./types";
+import type { AiSettings, LLMCallResult, StreamingCallback } from "./types";
 import type {
   Paper,
   PaperChunk,
   PaperQa,
+  PaperQaConversationTurn,
   QaEvidenceItem,
 } from "../../types/paper";
 
@@ -36,11 +42,11 @@ export interface PaperMetadataResult {
 }
 
 const CORE_SECTION_PATTERN =
-  /abstract|摘要|introduction|引言|method|methodology|方法|experiment|实验|result|结果|discussion|讨论|conclusion|结论/i;
+  /abstract|summary|introduction|method|methodology|experiment|result|discussion|conclusion/i;
 
 function ensureChunks(chunks: PaperChunk[]) {
   if (chunks.length === 0) {
-    throw new Error("请先解析 PDF，生成论文分块后再使用 App 内 AI 功能。");
+    throw new Error("Please parse the PDF before using AI paper features.");
   }
 }
 
@@ -49,7 +55,7 @@ function buildMessages(userPrompt: string) {
     {
       role: "system" as const,
       content:
-        "你是严谨的科研论文阅读助手。必须忠实原文，不编造；找不到依据时明确说明“原文未明确说明”。使用中文回答。",
+        "You are a rigorous academic paper reading assistant. Answer in Chinese unless the user asks otherwise. Stay faithful to the provided paper text and say when the paper does not provide direct evidence.",
     },
     { role: "user" as const, content: userPrompt },
   ];
@@ -95,7 +101,9 @@ function normalizeMetadata(
 
 function removeUnclear(value: string | null | undefined) {
   if (!value) return undefined;
-  return value === "原文未明确说明" ? undefined : value;
+  return /not\s+specified|not\s+clear|unknown|未明确|未说明/i.test(value)
+    ? undefined
+    : value;
 }
 
 function chunkIds(chunks: PaperChunk[]) {
@@ -109,7 +117,7 @@ function evidenceForChunks(chunks: PaperChunk[]): QaEvidenceItem[] {
     section_title: chunk.section_title,
     snippet:
       chunk.content.replace(/\s+/g, " ").trim().slice(0, 260) ||
-      "该分块没有可显示片段。",
+      "This chunk has no displayable text.",
   }));
 }
 
@@ -133,37 +141,38 @@ async function logAiCall(
   });
 }
 
+function requestLLM(
+  request: Parameters<typeof callLLM>[0],
+  settings: AiSettings,
+  onStream?: StreamingCallback,
+) {
+  return onStream
+    ? streamLLM(request, onStream, settings)
+    : callLLM(request, settings);
+}
+
 export async function extractPaperMetadataWithAI(
   paper: Paper,
   chunks: PaperChunk[],
   settings: AiSettings,
+  onStream?: StreamingCallback,
 ): Promise<PaperMetadataResult> {
   ensureChunks(chunks);
   const basePrompt = buildPaperMetadataPrompt({ chunks, maxCharacters: 14000 });
   const prompt = `${basePrompt.content}
 
-请优先输出一个 JSON 对象，字段如下：
-{
-  "title": "",
-  "authors": "",
-  "year": "",
-  "journal": "",
-  "abstract": "",
-  "keywords": "",
-  "research_field": "",
-  "paper_type": ""
-}
-
-找不到的信息请填“原文未明确说明”。JSON 之后可以补充简短依据说明。`;
+Return a JSON object first with these fields: title, authors, year, journal, abstract, keywords, research_field, paper_type.
+Use "原文未明确说明" for missing fields. You may add brief evidence after the JSON.`;
 
   try {
-    const llm = await callLLM(
+    const llm = await requestLLM(
       {
         messages: buildMessages(prompt),
         temperature: 0.1,
         maxTokens: 2500,
       },
       settings,
+      onStream,
     );
     const rawJson = extractJsonObject(llm.content);
     const metadata = normalizeMetadata(rawJson);
@@ -187,30 +196,21 @@ export async function extractPaperMetadataWithAI(
       action: "extract_metadata",
       provider: llm.provider,
       model: llm.model,
-      title: "AI 提取论文信息",
+      title: "AI extracted paper metadata",
       content: llm.content,
       structured_json: rawJson ? JSON.stringify(rawJson) : null,
       source_chunk_ids: chunkIds(chunks),
       status: "success",
     });
-    await logAiCall(
-      settings,
-      "extract_metadata",
-      "success",
-      "论文信息提取成功。",
-    );
+    await logAiCall(settings, "extract_metadata", "success", "Metadata extracted.");
 
-    return {
-      metadata,
-      rawContent: llm.content,
-      llm,
-    };
+    return { metadata, rawContent: llm.content, llm };
   } catch (error) {
     await logAiCall(
       settings,
       "extract_metadata",
       "failed",
-      error instanceof Error ? error.message : "论文信息提取失败。",
+      error instanceof Error ? error.message : "Metadata extraction failed.",
       error,
     );
     throw error;
@@ -221,43 +221,40 @@ export async function generateReadingNoteWithAI(
   paperId: string,
   chunks: PaperChunk[],
   settings: AiSettings,
+  onStream?: StreamingCallback,
 ) {
   ensureChunks(chunks);
   const prompt = buildReadingNotePrompt({ chunks, maxCharacters: 16000 });
 
   try {
-    const llm = await callLLM(
+    const llm = await requestLLM(
       {
         messages: buildMessages(prompt.content),
         temperature: 0.2,
         maxTokens: 5000,
       },
       settings,
+      onStream,
     );
     await createAiOutput({
       paper_id: paperId,
       action: "generate_reading_note",
       provider: llm.provider,
       model: llm.model,
-      title: "AI 生成精读笔记",
+      title: "AI generated reading note",
       content: llm.content,
       structured_json: null,
       source_chunk_ids: chunkIds(chunks),
       status: "success",
     });
-    await logAiCall(
-      settings,
-      "generate_reading_note",
-      "success",
-      "精读笔记生成成功。",
-    );
+    await logAiCall(settings, "generate_reading_note", "success", "Reading note generated.");
     return llm;
   } catch (error) {
     await logAiCall(
       settings,
       "generate_reading_note",
       "failed",
-      error instanceof Error ? error.message : "生成精读笔记失败。",
+      error instanceof Error ? error.message : "Reading note generation failed.",
       error,
     );
     throw error;
@@ -298,19 +295,54 @@ function selectQaContext(chunks: PaperChunk[], question: string) {
   return limited;
 }
 
+function normalizeConversationHistory(
+  history?: PaperQaConversationTurn[] | PaperQa[],
+) {
+  return (history ?? [])
+    .slice(-6)
+    .map((item) => ({
+      question: item.question,
+      answer: item.answer,
+    }))
+    .filter((item) => item.question.trim() && item.answer.trim());
+}
+
+function buildConversationContext(history?: PaperQaConversationTurn[] | PaperQa[]) {
+  const turns = normalizeConversationHistory(history);
+  if (turns.length === 0) return "";
+
+  return `Recent conversation context:
+${turns
+  .map(
+    (turn, index) =>
+      `Q${index + 1}: ${turn.question}
+A${index + 1}: ${turn.answer}`,
+  )
+  .join("\n\n")}
+
+Use this context to resolve follow-up references, but still ground the answer in the paper chunks below.`;
+}
+
 export async function answerQuestionWithAI(
   paperId: string,
   chunks: PaperChunk[],
   question: string,
   settings: AiSettings,
+  historyOrStream?: PaperQaConversationTurn[] | PaperQa[] | StreamingCallback,
+  onStream?: StreamingCallback,
 ): Promise<{ llm: LLMCallResult; qa: PaperQa }> {
   ensureChunks(chunks);
   if (!question.trim()) {
-    throw new Error("请输入论文问题。");
+    throw new Error("Please enter a paper question.");
   }
 
+  const conversationHistory =
+    typeof historyOrStream === "function" ? undefined : historyOrStream;
+  const streamCallback =
+    typeof historyOrStream === "function" ? historyOrStream : onStream;
   const contextChunks = selectQaContext(chunks, question);
-  const prompt = `${
+  const conversationContext = buildConversationContext(conversationHistory);
+  const prompt = `${conversationContext ? `${conversationContext}\n\n` : ""}${
     buildPaperQaPrompt({
       chunks: contextChunks,
       question,
@@ -318,21 +350,22 @@ export async function answerQuestionWithAI(
     }).content
   }
 
-请在回答末尾列出依据 chunk，格式为：
-依据：
-- chunk 1 / Abstract：依据说明
-- chunk 3 / Results：依据说明
+At the end of the answer, list supporting chunks in this format:
+Evidence:
+- chunk 1 / Abstract: why it supports the answer
+- chunk 3 / Results: why it supports the answer
 
-如果给定内容中没有直接依据，请明确回答“论文内容中未找到直接依据”。`;
+If the supplied paper content does not contain direct evidence, say so clearly.`;
 
   try {
-    const llm = await callLLM(
+    const llm = await requestLLM(
       {
         messages: buildMessages(prompt),
         temperature: 0.2,
         maxTokens: 2500,
       },
       settings,
+      streamCallback,
     );
     const evidence = evidenceForChunks(contextChunks);
     const qa = await createPaperQa({
@@ -346,13 +379,17 @@ export async function answerQuestionWithAI(
       action: "paper_qa",
       provider: llm.provider,
       model: llm.model,
-      title: `AI 论文问答：${question.slice(0, 36)}`,
+      title: `AI paper Q&A: ${question.slice(0, 36)}`,
       content: llm.content,
-      structured_json: JSON.stringify({ question, evidence }),
+      structured_json: JSON.stringify({
+        question,
+        evidence,
+        conversationHistory: normalizeConversationHistory(conversationHistory),
+      }),
       source_chunk_ids: chunkIds(contextChunks),
       status: "success",
     });
-    await logAiCall(settings, "paper_qa", "success", "论文问答成功。");
+    await logAiCall(settings, "paper_qa", "success", "Paper Q&A succeeded.");
 
     return { llm, qa };
   } catch (error) {
@@ -360,7 +397,7 @@ export async function answerQuestionWithAI(
       settings,
       "paper_qa",
       "failed",
-      error instanceof Error ? error.message : "论文问答失败。",
+      error instanceof Error ? error.message : "Paper Q&A failed.",
       error,
     );
     throw error;

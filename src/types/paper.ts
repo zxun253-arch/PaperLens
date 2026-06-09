@@ -101,12 +101,22 @@ export interface PaperQaInput {
   evidence?: string | null;
 }
 
+export interface PaperQaConversationTurn {
+  question: string;
+  answer: string;
+}
+
 export type LlmAction =
   | "test_connection"
   | "extract_metadata"
   | "generate_reading_note"
   | "paper_qa"
-  | "literature_review";
+  | "literature_review"
+  | "paper_agent_review"
+  | "academic_rewrite"
+  | "citation_check"
+  | "source_verification"
+  | "knowledge_card";
 
 export type LlmCallStatus = "success" | "failed";
 
@@ -151,7 +161,12 @@ export type AiOutputAction =
   | "extract_metadata"
   | "generate_reading_note"
   | "paper_qa"
-  | "literature_review";
+  | "literature_review"
+  | "paper_agent_review"
+  | "academic_rewrite"
+  | "citation_check"
+  | "source_verification"
+  | "knowledge_card";
 
 export type AiOutputStatus = "success" | "failed";
 
@@ -215,7 +230,8 @@ export type GlobalSearchHitType =
   | "chunk"
   | "note"
   | "qa"
-  | "tag";
+  | "tag"
+  | "annotation";
 
 export interface GlobalSearchResult {
   id: string;
@@ -243,4 +259,20 @@ export interface LiteratureReviewInput {
   title: string;
   paper_ids: string[];
   content: string;
+}
+
+export type AnnotationType = "highlight" | "underline" | "comment";
+
+export interface PaperAnnotation {
+  id: string;
+  paper_id: string;
+  chunk_id: string | null;
+  annotation_type: AnnotationType;
+  color: string | null;
+  start_offset: number | null;
+  end_offset: number | null;
+  selected_text: string | null;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
 }

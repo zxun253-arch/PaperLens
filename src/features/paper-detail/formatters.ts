@@ -1,6 +1,14 @@
 import type { PaperNoteType } from "../../types/paper";
 import type { PromptType } from "../../lib/prompts";
-import type { AiSettings } from "../../lib/llm";
+import type { AiMode, AiSettings } from "../../lib/llm";
+import { formatDate } from "../../utils/format";
+
+const modeMessages: Record<AiMode, string> = {
+  local_basic: "当前为本地基础模式，仅使用本地分析和笔记能力。",
+  prompt_only: "当前为 Prompt 辅助模式，生成 Prompt 后请复制到外部 AI 工具。",
+  custom_api: "当前为自定义大模型 API 模式，可在 App 内调用你配置的模型。",
+  local_model: "当前为本地模型模式（预留）。",
+};
 
 export const promptTypeLabels: Record<PromptType, string> = {
   paper_metadata: "论文信息提取",
@@ -22,15 +30,7 @@ export const promptTypes: PromptType[] = [
   "literature_review",
 ];
 
-export function formatDate(value: string) {
-  return new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
+export { formatDate };
 
 export function formatFileSize(size: number | null) {
   if (size === null) return "未记录";
@@ -50,14 +50,5 @@ export function yesNo(value: boolean) {
 
 export function getModeMessage(settings: AiSettings | null) {
   if (!settings) return "正在读取处理模式...";
-  if (settings.mode === "local_basic") {
-    return "当前为本地基础模式，可使用本地分析、Prompt、笔记和导出功能，不会调用模型。";
-  }
-  if (settings.mode === "prompt_only") {
-    return "当前为 Prompt 辅助模式，可复制 Prompt 到外部 AI 工具使用。";
-  }
-  if (settings.mode === "custom_api") {
-    return "当前为自定义大模型 API 模式，可在 App 内调用你配置的模型。";
-  }
-  return "本地模型模式后续支持 Ollama / LM Studio。";
+  return modeMessages[settings.mode] ?? modeMessages.custom_api;
 }
